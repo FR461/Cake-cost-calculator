@@ -1,339 +1,191 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from 'react';
+
+const defaultPantry = [
+  { id: '1', name: 'Cocoa Powder', price: 70, size: 100, unit: 'g' },
+  { id: '2', name: 'Flour (Maida)', price: 65, size: 1000, unit: 'g' },
+  { id: '3', name: 'Caster Sugar', price: 50, size: 1000, unit: 'g' },
+  { id: '4', name: 'Unsalted Butter', price: 275, size: 500, unit: 'g' },
+  { id: '5', name: 'Eggs', price: 90, size: 12, unit: 'pcs' }
+];
 
 export default function App() {
-  const [ingredients, setIngredients] = useState([
-    { name: "Flour", packCost: 5, packQty: 5, packUnit: "cups", usedQty: 2, usedUnit: "cups" },
-    { name: "Sugar", packCost: 4, packQty: 4, packUnit: "cups", usedQty: 1, usedUnit: "cups" },
-    { name: "Butter", packCost: 3, packQty: 200, packUnit: "g", usedQty: 100, usedUnit: "g" },
-    { name: "Eggs", packCost: 3, packQty: 12, packUnit: "pcs", usedQty: 3, usedUnit: "pcs" },
-  ]);
+  const [tab, setTab] = useState('calc');
+  const [pantry, setPantry] = useState(() => {
+    const s = localStorage.getItem('cake_pantry');
+    return s ? JSON.parse(s) : defaultPantry;
+  });
 
-  const [laborHours, setLaborHours] = useState(1.5);
-  const [hourlyRate, setHourlyRate] = useState(15);
-  const [overhead, setOverhead] = useState(5);
-  const [profitMargin, setProfitMargin] = useState(20);
+  // Pantry Form
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
+  const [size, setSize] = useState('');
+  const [unit, setUnit] = useState('cups');
 
-  const addIngredient = () => {
-    setIngredients([
-      ...ingredients,
-      { name: "", packCost: 0, packQty: 0, packUnit: "cups", usedQty: 0, usedUnit: "cups" },
-    ]);
+  // Recipe State
+  const [recipeName, setRecipeName] = useState('My Cake');
+  const [items, setItems] = useState([]);
+  const [packaging, setPackaging] = useState(50);
+  const [labor, setLabor] = useState(100);
+  const [margin, setMargin] = useState(40);
+
+  useEffect(() => {
+    localStorage.setItem('cake_pantry', JSON.stringify(pantry));
+  }, [pantry]);
+
+  const addPantryItem = (e) => {
+    e.preventDefault();
+    if (!name || !price || !size) return;
+    setPantry([...pantry, { id: Date.now().toString(), name, price: +price, size: +size, unit }]);
+    setName(''); setPrice(''); setSize('');
   };
 
-  const updateIngredient = (index, field, value) => {
-    const updated = [...ingredients];
-    updated[index][field] = value;
-    setIngredients(updated);
+  const deletePantryItem = (id) => {
+    setPantry(pantry.filter(i => i.id !== id));
+    setItems(items.filter(i => i.pantryId !== id));
   };
 
-  const removeIngredient = (index) => {
-    setIngredients(ingredients.filter((_, i) => i !== index));
+  const addRecipeItem = (pantryId) => {
+    if (!pantryId || items.some(i => i.pantryId === pantryId)) return;
+    setItems([...items, { pantryId, used: 1 }]);
   };
 
-  // Calculate actual ingredient cost based on package size and amount used
-  const calculateIngredientCost = (item) => {
-    const cost = parseFloat(item.packCost) || 0;
-    const packQty = parseFloat(item.packQty) || 0;
-    const usedQty = parseFloat(item.usedQty) || 0;
-
-    if (packQty <= 0) return 0;
-    return (cost / packQty) * usedQty;
+  const updateUsed = (pantryId, val) => {
+    setItems(items.map(i => i.pantryId === pantryId ? { ...i, used: parseFloat(val) || 0 } : i));
   };
 
-  const totalIngredientsCost = ingredients.reduce(
-    (sum, item) => sum + calculateIngredientCost(item),
-    0
-  );
+  const removeRecipeItem = (pantryId) => {
+    setItems(items.filter(i => i.pantryId !== pantryId));
+  };
 
-  const totalLaborCost = (parseFloat(laborHours) || 0) * (parseFloat(hourlyRate) || 0);
-  const totalOverhead = parseFloat(overhead) || 0;
-  const subtotal = totalIngredientsCost + totalLaborCost + totalOverhead;
-  const totalCost = subtotal + subtotal * ((parseFloat(profitMargin) || 0) / 100);
+  // Calculations
+  const calcItemCost = (pantryId, used) => {
+    const item = pantry.find(p => p.id === pantryId);
+    if (!item || item.size === 0) return 0;
+    return (item.price / item.size) * (used || 0);
+  };
 
-  const unitOptions = (
-    <>
-      <option value="cups">cups</option>
-      <option value="cup">cup</option>
-      <option value="g">g</option>
-      <option value="kg">kg</option>
-      <option value="ml">ml</option>
-      <option value="l">l</option>
-      <option value="pcs">pcs</option>
-      <option value="tbsp">tbsp</option>
-      <option value="tsp">tsp</option>
-    </>
-  );
+  const ingSubtotal = items.reduce((sum, i) => sum + calcItemCost(i.pantryId, i.used), 0);
+  const totalCost = ingSubtotal + (+packaging || 0) + (+labor || 0);
+  const suggestedPrice = margin < 100 ? totalCost / (1 - margin / 100) : totalCost;
 
   return (
-    <div style={styles.container}>
-      <h1 style={styles.title}>🎂 Cake Cost Calculator</h1>
-
-      {/* Ingredients Section */}
-      <div style={styles.card}>
-        <h2 style={styles.sectionHeader}>Ingredients & Pack Sizes</h2>
-        {ingredients.map((item, index) => (
-          <div key={index} style={styles.rowContainer}>
-            <div style={styles.rowTop}>
-              <input
-                type="text"
-                placeholder="Ingredient Name"
-                value={item.name}
-                onChange={(e) => updateIngredient(index, "name", e.target.value)}
-                style={{ ...styles.input, flex: 2 }}
-              />
-              <button onClick={() => removeIngredient(index)} style={styles.deleteBtn}>
-                ✕
-              </button>
-            </div>
-
-            <div style={styles.rowDetails}>
-              {/* Pack Details */}
-              <div style={styles.fieldGroup}>
-                <label style={styles.label}>Pack Price ($)</label>
-                <input
-                  type="number"
-                  value={item.packCost || ""}
-                  onChange={(e) => updateIngredient(index, "packCost", e.target.value)}
-                  style={styles.input}
-                />
-              </div>
-
-              <div style={styles.fieldGroup}>
-                <label style={styles.label}>Pack Size</label>
-                <div style={{ display: "flex", gap: "4px" }}>
-                  <input
-                    type="number"
-                    value={item.packQty || ""}
-                    onChange={(e) => updateIngredient(index, "packQty", e.target.value)}
-                    style={{ ...styles.input, flex: 1 }}
-                  />
-                  <select
-                    value={item.packUnit}
-                    onChange={(e) => updateIngredient(index, "packUnit", e.target.value)}
-                    style={styles.select}
-                  >
-                    {unitOptions}
-                  </select>
-                </div>
-              </div>
-
-              {/* Recipe Used Details */}
-              <div style={styles.fieldGroup}>
-                <label style={styles.label}>Recipe Used</label>
-                <div style={{ display: "flex", gap: "4px" }}>
-                  <input
-                    type="number"
-                    value={item.usedQty || ""}
-                    onChange={(e) => updateIngredient(index, "usedQty", e.target.value)}
-                    style={{ ...styles.input, flex: 1 }}
-                  />
-                  <select
-                    value={item.usedUnit}
-                    onChange={(e) => updateIngredient(index, "usedUnit", e.target.value)}
-                    style={styles.select}
-                  >
-                    {unitOptions}
-                  </select>
-                </div>
-              </div>
-
-              <div style={styles.costBadge}>
-                Cost: ${calculateIngredientCost(item).toFixed(2)}
-              </div>
-            </div>
-          </div>
-        ))}
-
-        <button onClick={addIngredient} style={styles.addBtn}>
-          + Add Ingredient
-        </button>
+    <div style={{ padding: '16px', fontFamily: 'sans-serif', maxWidth: '600px', margin: '0 auto', background: '#fdfbf7', minHeight: '100vh' }}>
+      <h2 style={{ color: '#d97706', marginBottom: '8px' }}>🎂 BakeCost Studio</h2>
+      
+      {/* Navigation */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        <button onClick={() => setTab('calc')} style={{ flex: 1, padding: '10px', background: tab === 'calc' ? '#d97706' : '#eee', color: tab === 'calc' ? '#fff' : '#333', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>Calculator</button>
+        <button onClick={() => setTab('pantry')} style={{ flex: 1, padding: '10px', background: tab === 'pantry' ? '#d97706' : '#eee', color: tab === 'pantry' ? '#fff' : '#333', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>Pantry ({pantry.length})</button>
       </div>
 
-      {/* Labor & Extra Costs Section */}
-      <div style={styles.card}>
-        <h2 style={styles.sectionHeader}>Labor & Packaging</h2>
-        <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-          <div style={{ flex: 1 }}>
-            <label style={styles.label}>Hours Worked</label>
-            <input
-              type="number"
-              value={laborHours || ""}
-              onChange={(e) => setLaborHours(e.target.value)}
-              style={styles.input}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={styles.label}>Hourly Rate ($)</label>
-            <input
-              type="number"
-              value={hourlyRate || ""}
-              onChange={(e) => setHourlyRate(e.target.value)}
-              style={styles.input}
-            />
-          </div>
-        </div>
-
+      {tab === 'calc' && (
         <div>
-          <label style={styles.label}>Extra Costs (Box, Ribbon, Board) ($)</label>
-          <input
-            type="number"
-            value={overhead || ""}
-            onChange={(e) => setOverhead(e.target.value)}
-            style={styles.input}
-          />
-        </div>
-      </div>
+          <div style={{ background: '#fff', padding: '12px', borderRadius: '8px', marginBottom: '12px', border: '1px solid #ddd' }}>
+            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Recipe Name</label>
+            <input value={recipeName} onChange={e => setRecipeName(e.target.value)} style={{ width: '90%', padding: '8px', marginTop: '4px', borderRadius: '6px', border: '1px solid #ccc' }} />
+          </div>
 
-      {/* Final Cost Summary */}
-      <div style={styles.summaryCard}>
-        <h2 style={styles.sectionHeader}>Total Price</h2>
-        
-        <div style={styles.summaryRow}>
-          <span>Ingredients Total:</span>
-          <span>${totalIngredientsCost.toFixed(2)}</span>
-        </div>
-        <div style={styles.summaryRow}>
-          <span>Labor Total:</span>
-          <span>${totalLaborCost.toFixed(2)}</span>
-        </div>
-        <div style={styles.summaryRow}>
-          <span>Extra Costs:</span>
-          <span>${totalOverhead.toFixed(2)}</span>
-        </div>
+          {/* Add Ingredient Dropdown */}
+          <div style={{ background: '#fff', padding: '12px', borderRadius: '8px', marginBottom: '12px', border: '1px solid #ddd' }}>
+            <h4 style={{ margin: '0 0 8px 0' }}>Add Ingredients</h4>
+            <select onChange={e => { addRecipeItem(e.target.value); e.target.value = ''; }} style={{ width: '100%', padding: '8px', borderRadius: '6px' }}>
+              <option value="">+ Select from Pantry</option>
+              {pantry.map(i => <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
+            </select>
 
-        <div style={{ margin: "12px 0" }}>
-          <label style={styles.label}>Profit Margin (%)</label>
-          <input
-            type="number"
-            value={profitMargin}
-            onChange={(e) => setProfitMargin(e.target.value)}
-            style={{ ...styles.input, width: "80px", display: "block" }}
-          />
-        </div>
+            <div style={{ marginTop: '12px' }}>
+              {items.map(i => {
+                const item = pantry.find(p => p.id === i.pantryId);
+                if (!item) return null;
+                const cost = calcItemCost(i.pantryId, i.used);
+                return (
+                  <div key={i.pantryId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f9f9f9', padding: '8px', marginBottom: '6px', borderRadius: '6px', fontSize: '14px' }}>
+                    <div style={{ flex: 1 }}>
+                      <strong>{item.name}</strong>
+                      <div style={{ fontSize: '11px', color: '#666' }}>₹{item.price} per {item.size} {item.unit}</div>
+                    </div>
+                    <div>
+                      Using: <input type="number" value={i.used} onChange={e => updateUsed(i.pantryId, e.target.value)} style={{ width: '50px', padding: '4px' }} /> {item.unit}
+                    </div>
+                    <div style={{ width: '60px', textAlign: 'right', fontWeight: 'bold', color: '#d97706' }}>
+                      ₹{cost.toFixed(1)}
+                    </div>
+                    <button onClick={() => removeRecipeItem(i.pantryId)} style={{ marginLeft: '6px', background: 'none', border: 'none', color: 'red' }}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
-        <div style={styles.finalTotal}>
-          Final Selling Price: ${totalCost.toFixed(2)}
+          {/* Overheads */}
+          <div style={{ background: '#fff', padding: '12px', borderRadius: '8px', marginBottom: '12px', border: '1px solid #ddd' }}>
+            <h4 style={{ margin: '0 0 8px 0' }}>Overheads & Labor</h4>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '11px' }}>Box/Board (₹)</label>
+                <input type="number" value={packaging} onChange={e => setPackaging(+e.target.value)} style={{ width: '90%', padding: '6px' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: '11px' }}>Labor/Gas (₹)</label>
+                <input type="number" value={labor} onChange={e => setLabor(+e.target.value)} style={{ width: '90%', padding: '6px' }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Summary Box */}
+          <div style={{ background: '#1e293b', color: '#fff', padding: '16px', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span>Total Cost:</span>
+              <strong style={{ fontSize: '18px', color: '#fbbf24' }}>₹{totalCost.toFixed(2)}</strong>
+            </div>
+
+            <div style={{ borderTop: '1px solid #334155', paddingTop: '8px' }}>
+              <label style={{ fontSize: '12px' }}>Profit Margin: {margin}%</label>
+              <input type="range" min="0" max="80" value={margin} onChange={e => setMargin(+e.target.value)} style={{ width: '100%' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+                <span>Suggested Selling Price:</span>
+                <strong style={{ color: '#34d399', fontSize: '16px' }}>₹{suggestedPrice.toFixed(0)}</strong>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {tab === 'pantry' && (
+        <div>
+          <form onSubmit={addPantryItem} style={{ background: '#fff', padding: '12px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #ddd' }}>
+            <h4>Add New Ingredient</h4>
+            <input placeholder="Name (e.g. Cocoa)" value={name} onChange={e => setName(e.target.value)} style={{ width: '90%', padding: '8px', marginBottom: '6px' }} required />
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+              <input placeholder="Price (₹)" type="number" value={price} onChange={e => setPrice(e.target.value)} style={{ width: '40%', padding: '8px' }} required />
+              <input placeholder="Pack Size" type="number" value={size} onChange={e => setSize(e.target.value)} style={{ width: '30%', padding: '8px' }} required />
+              <select value={unit} onChange={e => setUnit(e.target.value)} style={{ padding: '8px', width: '30%' }}>
+                <option value="cups">cups</option>
+                <option value="cup">cup</option>
+                <option value="g">g</option>
+                <option value="kg">kg</option>
+                <option value="ml">ml</option>
+                <option value="pcs">pcs</option>
+                <option value="tbsp">tbsp</option>
+                <option value="tsp">tsp</option>
+              </select>
+            </div>
+            <button type="submit" style={{ width: '100%', padding: '10px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>+ Save to Pantry</button>
+          </form>
+
+          <div>
+            {pantry.map(i => (
+              <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '10px', marginBottom: '6px', borderRadius: '6px', border: '1px solid #eee' }}>
+                <div>
+                  <strong>{i.name}</strong>
+                  <div style={{ fontSize: '12px', color: '#666' }}>₹{i.price} for {i.size} {i.unit} (₹{(i.price/i.size).toFixed(2)}/{i.unit})</div>
+                </div>
+                <button onClick={() => deletePantryItem(i.id)} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '6px 10px', borderRadius: '4px' }}>Delete</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-const styles = {
-  container: {
-    maxWidth: "500px",
-    margin: "0 auto",
-    padding: "16px",
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    backgroundColor: "#f4f6f8",
-    minHeight: "100vh",
-    boxSizing: "border-box",
-  },
-  title: {
-    textAlign: "center",
-    fontSize: "1.5rem",
-    color: "#2c3e50",
-    marginBottom: "16px",
-  },
-  card: {
-    backgroundColor: "#ffffff",
-    borderRadius: "10px",
-    padding: "14px",
-    marginBottom: "16px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-  },
-  summaryCard: {
-    backgroundColor: "#e8f5e9",
-    borderRadius: "10px",
-    padding: "16px",
-    border: "1px solid #c8e6c9",
-  },
-  sectionHeader: {
-    fontSize: "1.1rem",
-    marginTop: 0,
-    marginBottom: "12px",
-    color: "#34495e",
-  },
-  rowContainer: {
-    borderBottom: "1px solid #eee",
-    paddingBottom: "10px",
-    marginBottom: "10px",
-  },
-  rowTop: {
-    display: "flex",
-    gap: "8px",
-    marginBottom: "6px",
-  },
-  rowDetails: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "8px",
-    alignItems: "end",
-  },
-  fieldGroup: {
-    display: "flex",
-    flexDirection: "column",
-  },
-  label: {
-    fontSize: "0.75rem",
-    color: "#7f8c8d",
-    marginBottom: "3px",
-  },
-  input: {
-    padding: "8px",
-    borderRadius: "5px",
-    border: "1px solid #ccc",
-    fontSize: "0.9rem",
-    boxSizing: "border-box",
-    width: "100%",
-  },
-  select: {
-    padding: "8px",
-    borderRadius: "5px",
-    border: "1px solid #ccc",
-    fontSize: "0.9rem",
-    backgroundColor: "#fff",
-  },
-  deleteBtn: {
-    background: "#ff5252",
-    color: "#fff",
-    border: "none",
-    borderRadius: "5px",
-    padding: "0 10px",
-    cursor: "pointer",
-  },
-  addBtn: {
-    width: "100%",
-    padding: "10px",
-    backgroundColor: "#3498db",
-    color: "#fff",
-    border: "none",
-    borderRadius: "6px",
-    fontWeight: "bold",
-    cursor: "pointer",
-    marginTop: "6px",
-  },
-  costBadge: {
-    gridColumn: "span 2",
-    textAlign: "right",
-    fontSize: "0.85rem",
-    fontWeight: "bold",
-    color: "#27ae60",
-  },
-  summaryRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    fontSize: "0.9rem",
-    marginBottom: "4px",
-    color: "#555",
-  },
-  finalTotal: {
-    fontSize: "1.25rem",
-    fontWeight: "bold",
-    color: "#1b5e20",
-    textAlign: "center",
-    marginTop: "12px",
-    paddingTop: "8px",
-    borderTop: "2px dashed #a5d6a7",
-  },
-};
