@@ -5,8 +5,23 @@ const defaultPantry = [
   { id: '2', name: 'Flour (Maida)', price: 65, size: 1000, unit: 'g' },
   { id: '3', name: 'Caster Sugar', price: 50, size: 1000, unit: 'g' },
   { id: '4', name: 'Unsalted Butter', price: 275, size: 500, unit: 'g' },
-  { id: '5', name: 'Eggs', price: 90, size: 12, unit: 'pcs' }
+  { id: '5', name: 'Eggs', price: 90, size: 12, unit: 'pcs' },
+  { id: '6', name: 'Oil', price: 200, size: 1000, unit: 'ml' }
 ];
+
+// Base values for volume/weight unit conversions
+const unitInBase = {
+  g: 1,
+  kg: 1000,
+  mg: 0.001,
+  ml: 1,
+  l: 1000,
+  cups: 240,
+  cup: 240,
+  tbsp: 15,
+  tsp: 5,
+  pcs: 1
+};
 
 export default function App() {
   const [tab, setTab] = useState('calc');
@@ -20,7 +35,6 @@ export default function App() {
     return r ? JSON.parse(r) : [];
   });
 
-  // State shared for editing a recipe in Calculator
   const [currentRecipe, setCurrentRecipe] = useState({
     id: null,
     name: 'My Cake',
@@ -119,11 +133,17 @@ function CalculatorTab({ pantry, currentRecipe, setCurrentRecipe, onSaveRecipe }
 
   const addRecipeItem = (pantryId) => {
     if (!pantryId || items.some(i => i.pantryId === pantryId)) return;
-    setCurrentRecipe({ ...currentRecipe, items: [...items, { pantryId, used: 1 }] });
+    const item = pantry.find(p => p.id === pantryId);
+    setCurrentRecipe({ ...currentRecipe, items: [...items, { pantryId, used: 1, usedUnit: item ? item.unit : 'cups' }] });
   };
 
-  const updateUsed = (pantryId, val) => {
-    const updatedItems = items.map(i => i.pantryId === pantryId ? { ...i, used: parseFloat(val) || 0 } : i);
+  const updateUsed = (pantryId, field, val) => {
+    const updatedItems = items.map(i => {
+      if (i.pantryId === pantryId) {
+        return { ...i, [field]: field === 'used' ? parseFloat(val) || 0 : val };
+      }
+      return i;
+    });
     setCurrentRecipe({ ...currentRecipe, items: updatedItems });
   };
 
@@ -132,13 +152,23 @@ function CalculatorTab({ pantry, currentRecipe, setCurrentRecipe, onSaveRecipe }
     setCurrentRecipe({ ...currentRecipe, items: updatedItems });
   };
 
-  const calcItemCost = (pantryId, used) => {
+  // Unit conversion math
+  const calcItemCost = (pantryId, used, usedUnit) => {
     const item = pantry.find(p => p.id === pantryId);
     if (!item || item.size === 0) return 0;
-    return (item.price / item.size) * (used || 0);
+
+    const pantryBaseMult = unitInBase[item.unit] || 1;
+    const recipeBaseMult = unitInBase[usedUnit] || 1;
+
+    // Price per base unit (e.g., price per ml or per g)
+    const costPerBaseUnit = item.price / (item.size * pantryBaseMult);
+    // Amount used converted to base units
+    const totalBaseUsed = (used || 0) * recipeBaseMult;
+
+    return costPerBaseUnit * totalBaseUsed;
   };
 
-  const ingSubtotal = items.reduce((sum, i) => sum + calcItemCost(i.pantryId, i.used), 0);
+  const ingSubtotal = items.reduce((sum, i) => sum + calcItemCost(i.pantryId, i.used, i.usedUnit), 0);
   const totalCost = ingSubtotal + (+packaging || 0) + (+labor || 0);
   const suggestedPrice = margin < 100 ? totalCost / (1 - margin / 100) : totalCost;
 
@@ -161,20 +191,32 @@ function CalculatorTab({ pantry, currentRecipe, setCurrentRecipe, onSaveRecipe }
           {items.map(i => {
             const item = pantry.find(p => p.id === i.pantryId);
             if (!item) return null;
-            const cost = calcItemCost(i.pantryId, i.used);
+            const cost = calcItemCost(i.pantryId, i.used, i.usedUnit);
             return (
-              <div key={i.pantryId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f9f9f9', padding: '8px', marginBottom: '6px', borderRadius: '6px', fontSize: '14px' }}>
+              <div key={i.pantryId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f9f9f9', padding: '8px', marginBottom: '6px', borderRadius: '6px', fontSize: '13px' }}>
                 <div style={{ flex: 1 }}>
                   <strong>{item.name}</strong>
                   <div style={{ fontSize: '11px', color: '#666' }}>₹{item.price} per {item.size} {item.unit}</div>
                 </div>
-                <div>
-                  Using: <input type="number" value={i.used} onChange={e => updateUsed(i.pantryId, e.target.value)} style={{ width: '50px', padding: '4px' }} /> {item.unit}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span>Using:</span>
+                  <input type="number" step="0.1" value={i.used} onChange={e => updateUsed(i.pantryId, 'used', e.target.value)} style={{ width: '45px', padding: '4px' }} />
+                  <select value={i.usedUnit || item.unit} onChange={e => updateUsed(i.pantryId, 'usedUnit', e.target.value)} style={{ padding: '4px', fontSize: '12px' }}>
+                    <option value="cups">cups</option>
+                    <option value="cup">cup</option>
+                    <option value="tbsp">tbsp</option>
+                    <option value="tsp">tsp</option>
+                    <option value="ml">ml</option>
+                    <option value="l">l</option>
+                    <option value="g">g</option>
+                    <option value="kg">kg</option>
+                    <option value="pcs">pcs</option>
+                  </select>
                 </div>
-                <div style={{ width: '60px', textAlign: 'right', fontWeight: 'bold', color: '#d97706' }}>
+                <div style={{ width: '55px', textAlign: 'right', fontWeight: 'bold', color: '#d97706' }}>
                   ₹{cost.toFixed(1)}
                 </div>
-                <button onClick={() => removeRecipeItem(i.pantryId)} style={{ marginLeft: '6px', background: 'none', border: 'none', color: 'red' }}>✕</button>
+                <button onClick={() => removeRecipeItem(i.pantryId)} style={{ marginLeft: '4px', background: 'none', border: 'none', color: 'red', cursor: 'pointer' }}>✕</button>
               </div>
             );
           })}
@@ -253,6 +295,7 @@ function PantryTab({ pantry, onAddPantryItem, onDeletePantryItem }) {
             <option value="g">g</option>
             <option value="kg">kg</option>
             <option value="ml">ml</option>
+            <option value="l">l</option>
             <option value="pcs">pcs</option>
             <option value="tbsp">tbsp</option>
             <option value="tsp">tsp</option>
