@@ -15,9 +15,28 @@ export default function App() {
     return s ? JSON.parse(s) : defaultPantry;
   });
 
+  const [savedRecipes, setSavedRecipes] = useState(() => {
+    const r = localStorage.getItem('cake_recipes');
+    return r ? JSON.parse(r) : [];
+  });
+
+  // State shared for editing a recipe in Calculator
+  const [currentRecipe, setCurrentRecipe] = useState({
+    id: null,
+    name: 'My Cake',
+    items: [],
+    packaging: 50,
+    labor: 100,
+    margin: 40
+  });
+
   useEffect(() => {
     localStorage.setItem('cake_pantry', JSON.stringify(pantry));
   }, [pantry]);
+
+  useEffect(() => {
+    localStorage.setItem('cake_recipes', JSON.stringify(savedRecipes));
+  }, [savedRecipes]);
 
   const deletePantryItem = (id) => {
     setPantry(pantry.filter(i => i.id !== id));
@@ -25,6 +44,27 @@ export default function App() {
 
   const addPantryItem = (newItem) => {
     setPantry([...pantry, newItem]);
+  };
+
+  const saveRecipe = (recipeToSave) => {
+    const exists = savedRecipes.some(r => r.id === recipeToSave.id);
+    let updated;
+    if (exists) {
+      updated = savedRecipes.map(r => r.id === recipeToSave.id ? recipeToSave : r);
+    } else {
+      updated = [...savedRecipes, { ...recipeToSave, id: Date.now().toString() }];
+    }
+    setSavedRecipes(updated);
+    alert('Recipe saved successfully!');
+  };
+
+  const deleteRecipe = (id) => {
+    setSavedRecipes(savedRecipes.filter(r => r.id !== id));
+  };
+
+  const loadRecipe = (recipe) => {
+    setCurrentRecipe(recipe);
+    setTab('calc');
   };
 
   return (
@@ -35,12 +75,32 @@ export default function App() {
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         <button onClick={() => setTab('calc')} style={{ flex: 1, padding: '10px', background: tab === 'calc' ? '#d97706' : '#eee', color: tab === 'calc' ? '#fff' : '#333', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>Calculator</button>
         <button onClick={() => setTab('pantry')} style={{ flex: 1, padding: '10px', background: tab === 'pantry' ? '#d97706' : '#eee', color: tab === 'pantry' ? '#fff' : '#333', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>Pantry ({pantry.length})</button>
+        <button onClick={() => setTab('recipes')} style={{ flex: 1, padding: '10px', background: tab === 'recipes' ? '#d97706' : '#eee', color: tab === 'recipes' ? '#fff' : '#333', border: 'none', borderRadius: '8px', fontWeight: 'bold' }}>Recipes ({savedRecipes.length})</button>
       </div>
 
-      {tab === 'calc' ? (
-        <CalculatorTab pantry={pantry} />
-      ) : (
-        <PantryTab pantry={pantry} onAddPantryItem={addPantryItem} onDeletePantryItem={deletePantryItem} />
+      {tab === 'calc' && (
+        <CalculatorTab 
+          pantry={pantry} 
+          currentRecipe={currentRecipe} 
+          setCurrentRecipe={setCurrentRecipe} 
+          onSaveRecipe={saveRecipe} 
+        />
+      )}
+
+      {tab === 'pantry' && (
+        <PantryTab 
+          pantry={pantry} 
+          onAddPantryItem={addPantryItem} 
+          onDeletePantryItem={deletePantryItem} 
+        />
+      )}
+
+      {tab === 'recipes' && (
+        <RecipesTab 
+          savedRecipes={savedRecipes} 
+          onLoadRecipe={loadRecipe} 
+          onDeleteRecipe={deleteRecipe} 
+        />
       )}
     </div>
   );
@@ -49,24 +109,27 @@ export default function App() {
 /* ==========================================================================
    CALCULATOR COMPONENT
    ========================================================================== */
-function CalculatorTab({ pantry }) {
-  const [recipeName, setRecipeName] = useState('My Cake');
-  const [items, setItems] = useState([]);
-  const [packaging, setPackaging] = useState(50);
-  const [labor, setLabor] = useState(100);
-  const [margin, setMargin] = useState(40);
+function CalculatorTab({ pantry, currentRecipe, setCurrentRecipe, onSaveRecipe }) {
+  const { name: recipeName, items, packaging, labor, margin } = currentRecipe;
+
+  const setRecipeName = (val) => setCurrentRecipe({ ...currentRecipe, name: val });
+  const setPackaging = (val) => setCurrentRecipe({ ...currentRecipe, packaging: val });
+  const setLabor = (val) => setCurrentRecipe({ ...currentRecipe, labor: val });
+  const setMargin = (val) => setCurrentRecipe({ ...currentRecipe, margin: val });
 
   const addRecipeItem = (pantryId) => {
     if (!pantryId || items.some(i => i.pantryId === pantryId)) return;
-    setItems([...items, { pantryId, used: 1 }]);
+    setCurrentRecipe({ ...currentRecipe, items: [...items, { pantryId, used: 1 }] });
   };
 
   const updateUsed = (pantryId, val) => {
-    setItems(items.map(i => i.pantryId === pantryId ? { ...i, used: parseFloat(val) || 0 } : i));
+    const updatedItems = items.map(i => i.pantryId === pantryId ? { ...i, used: parseFloat(val) || 0 } : i);
+    setCurrentRecipe({ ...currentRecipe, items: updatedItems });
   };
 
   const removeRecipeItem = (pantryId) => {
-    setItems(items.filter(i => i.pantryId !== pantryId));
+    const updatedItems = items.filter(i => i.pantryId !== pantryId);
+    setCurrentRecipe({ ...currentRecipe, items: updatedItems });
   };
 
   const calcItemCost = (pantryId, used) => {
@@ -133,14 +196,14 @@ function CalculatorTab({ pantry }) {
         </div>
       </div>
 
-      {/* Summary Box */}
+      {/* Summary Box & Save Recipe */}
       <div style={{ background: '#1e293b', color: '#fff', padding: '16px', borderRadius: '12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
           <span>Total Cost:</span>
           <strong style={{ fontSize: '18px', color: '#fbbf24' }}>₹{totalCost.toFixed(2)}</strong>
         </div>
 
-        <div style={{ borderTop: '1px solid #334155', paddingTop: '8px' }}>
+        <div style={{ borderTop: '1px solid #334155', paddingTop: '8px', marginBottom: '12px' }}>
           <label style={{ fontSize: '12px' }}>Profit Margin: {margin}%</label>
           <input type="range" min="0" max="80" value={margin} onChange={e => setMargin(+e.target.value)} style={{ width: '100%' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
@@ -148,6 +211,13 @@ function CalculatorTab({ pantry }) {
             <strong style={{ color: '#34d399', fontSize: '16px' }}>₹{suggestedPrice.toFixed(0)}</strong>
           </div>
         </div>
+
+        <button 
+          onClick={() => onSaveRecipe(currentRecipe)} 
+          style={{ width: '100%', padding: '10px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+        >
+          💾 Save Recipe
+        </button>
       </div>
     </div>
   );
@@ -202,6 +272,35 @@ function PantryTab({ pantry, onAddPantryItem, onDeletePantryItem }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   RECIPES TAB COMPONENT
+   ========================================================================== */
+function RecipesTab({ savedRecipes, onLoadRecipe, onDeleteRecipe }) {
+  return (
+    <div>
+      <h4 style={{ margin: '0 0 12px 0' }}>Saved Recipes</h4>
+      {savedRecipes.length === 0 ? (
+        <div style={{ background: '#fff', padding: '16px', borderRadius: '8px', textAlign: 'center', color: '#777', border: '1px solid #ddd' }}>
+          No saved recipes yet. Build a recipe in the Calculator tab and tap "Save Recipe"!
+        </div>
+      ) : (
+        savedRecipes.map(recipe => (
+          <div key={recipe.id} style={{ background: '#fff', padding: '12px', marginBottom: '8px', borderRadius: '8px', border: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <strong>{recipe.name}</strong>
+              <div style={{ fontSize: '12px', color: '#666' }}>{recipe.items.length} ingredient(s)</div>
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button onClick={() => onLoadRecipe(recipe)} style={{ background: '#d97706', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: '4px', fontWeight: 'bold' }}>Load</button>
+              <button onClick={() => onDeleteRecipe(recipe.id)} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '6px 10px', borderRadius: '4px' }}>Delete</button>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
