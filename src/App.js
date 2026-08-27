@@ -47,7 +47,12 @@ export default function App() {
   }, [savedRecipes]);
 
   const deletePantryItem = (id) => setPantry(pantry.filter(i => i.id !== id));
+  
   const addPantryItem = (newItem) => setPantry([...pantry, newItem]);
+
+  const updatePantryItem = (updatedItem) => {
+    setPantry(pantry.map(i => i.id === updatedItem.id ? updatedItem : i));
+  };
 
   const saveRecipe = (recipeToSave) => {
     const recipeId = recipeToSave.id || Date.now().toString();
@@ -115,6 +120,7 @@ export default function App() {
         <PantryTab 
           pantry={pantry} 
           onAddPantryItem={addPantryItem} 
+          onUpdatePantryItem={updatePantryItem}
           onDeletePantryItem={deletePantryItem} 
         />
       )}
@@ -298,9 +304,9 @@ function CalculatorTab({ pantry, currentRecipe, setCurrentRecipe, onSaveRecipe, 
 }
 
 /* ==========================================================================
-   PANTRY COMPONENT
+   PANTRY COMPONENT (WITH INLINE EDITING)
    ========================================================================== */
-function PantryTab({ pantry, onAddPantryItem, onDeletePantryItem }) {
+function PantryTab({ pantry, onAddPantryItem, onUpdatePantryItem, onDeletePantryItem }) {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [size, setSize] = useState('');
@@ -308,11 +314,33 @@ function PantryTab({ pantry, onAddPantryItem, onDeletePantryItem }) {
   const [category, setCategory] = useState('cake');
   const [pantryFilter, setPantryFilter] = useState('all');
 
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', price: '', size: '', unit: 'g', category: 'cake' });
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name || !price || !size) return;
     onAddPantryItem({ id: Date.now().toString(), name, price: +price, size: +size, unit, category });
     setName(''); setPrice(''); setSize('');
+  };
+
+  const startEdit = (item) => {
+    setEditingId(item.id);
+    setEditForm({ ...item });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleUpdate = (e) => {
+    e.preventDefault();
+    onUpdatePantryItem({
+      ...editForm,
+      price: +editForm.price,
+      size: +editForm.size
+    });
+    setEditingId(null);
   };
 
   const filteredPantry = pantryFilter === 'all' 
@@ -355,12 +383,46 @@ function PantryTab({ pantry, onAddPantryItem, onDeletePantryItem }) {
 
       <div>
         {filteredPantry.map(i => (
-          <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff', padding: '10px', marginBottom: '6px', borderRadius: '6px', border: '1px solid #eee' }}>
-            <div>
-              <strong>{i.name}</strong> <span style={{ fontSize: '10px', background: '#eee', padding: '2px 6px', borderRadius: '4px', marginLeft: '4px' }}>{(i.category || 'cake').toUpperCase()}</span>
-              <div style={{ fontSize: '12px', color: '#666' }}>₹{i.price} for {i.size} {i.unit} (₹{(i.price/i.size).toFixed(2)}/{i.unit})</div>
-            </div>
-            <button onClick={() => onDeletePantryItem(i.id)} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '6px 10px', borderRadius: '4px' }}>Delete</button>
+          <div key={i.id} style={{ background: '#fff', padding: '10px', marginBottom: '6px', borderRadius: '6px', border: '1px solid #eee' }}>
+            {editingId === i.id ? (
+              <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} style={{ padding: '6px' }} required />
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <input type="number" value={editForm.price} onChange={e => setEditForm({ ...editForm, price: e.target.value })} placeholder="Price" style={{ width: '30%', padding: '6px' }} required />
+                  <input type="number" value={editForm.size} onChange={e => setEditForm({ ...editForm, size: e.target.value })} placeholder="Size" style={{ width: '30%', padding: '6px' }} required />
+                  <select value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} style={{ width: '20%', padding: '6px' }}>
+                    <option value="cups">cups</option>
+                    <option value="cup">cup</option>
+                    <option value="g">g</option>
+                    <option value="kg">kg</option>
+                    <option value="ml">ml</option>
+                    <option value="l">l</option>
+                    <option value="pcs">pcs</option>
+                    <option value="tbsp">tbsp</option>
+                    <option value="tsp">tsp</option>
+                  </select>
+                  <select value={editForm.category || 'cake'} onChange={e => setEditForm({ ...editForm, category: e.target.value })} style={{ width: '20%', padding: '6px' }}>
+                    <option value="cake">Cake</option>
+                    <option value="cream">Cream</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                  <button type="button" onClick={cancelEdit} style={{ background: '#eee', color: '#333', border: 'none', padding: '4px 8px', borderRadius: '4px' }}>Cancel</button>
+                  <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>Save</button>
+                </div>
+              </form>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>{i.name}</strong> <span style={{ fontSize: '10px', background: '#eee', padding: '2px 6px', borderRadius: '4px', marginLeft: '4px' }}>{(i.category || 'cake').toUpperCase()}</span>
+                  <div style={{ fontSize: '12px', color: '#666' }}>₹{i.price} for {i.size} {i.unit} (₹{(i.price/i.size).toFixed(2)}/{i.unit})</div>
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button onClick={() => startEdit(i)} style={{ background: '#feF3c7', color: '#d97706', border: 'none', padding: '6px 10px', borderRadius: '4px', fontWeight: 'bold' }}>Edit</button>
+                  <button onClick={() => onDeletePantryItem(i.id)} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '6px 10px', borderRadius: '4px' }}>Delete</button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
