@@ -1,28 +1,25 @@
 import React, { useState, useEffect } from 'react';
 
 const defaultPantry = [
-  { id: '1', name: 'Cocoa Powder', price: 165, size: 70, unit: 'g', category: 'cake', isDry: true },
-  { id: '2', name: 'Flour (Maida)', price: 100, size: 1000, unit: 'g', category: 'cake', isDry: true },
-  { id: '3', name: 'Powdered Sugar', price: 75, size: 500, unit: 'g', category: 'cake', isDry: true },
+  { id: '1', name: 'Cocoa Powder', price: 70, size: 100, unit: 'g', category: 'cake', isDry: true },
+  { id: '2', name: 'Flour (Maida)', price: 65, size: 1000, unit: 'g', category: 'cake', isDry: true },
+  { id: '3', name: 'Caster Sugar', price: 50, size: 1000, unit: 'g', category: 'cake', isDry: true },
   { id: '4', name: 'Unsalted Butter', price: 275, size: 500, unit: 'g', category: 'cake', isDry: true },
-  { id: '5', name: 'Eggs', price: 144, size: 12, unit: 'pcs', category: 'cake', isDry: false },
+  { id: '5', name: 'Eggs', price: 90, size: 12, unit: 'pcs', category: 'cake', isDry: false },
   { id: '6', name: 'Oil', price: 200, size: 1000, unit: 'ml', category: 'cake', isDry: false },
-  { id: '7', name: 'Milk', price: 33, size: 500, unit: 'ml', category: 'cake', isDry: false },
-  { id: '8', name: 'Whipping Cream', price: 220, size: 1000, unit: 'ml', category: 'cream', isDry: false },
-  { id: '9', name: 'Dairy Cream', price: 100, size: 250, unit: 'ml', category: 'cream', isDry: false },
-  { id: '10', name: 'Chocolate Morde', price: 220, size: 400, unit: 'g', category: 'cream', isDry: true }
+  { id: '7', name: 'Whipping Cream', price: 200, size: 1000, unit: 'ml', category: 'cream', isDry: false },
+  { id: '8', name: 'Cream Cheese', price: 350, size: 500, unit: 'g', category: 'cream', isDry: false }
 ];
 
 export default function App() {
   const [tab, setTab] = useState('calc');
   
-  // Safely load pantry without wiping user localStorage
+  // Safely load pantry from localStorage while protecting existing items
   const [pantry, setPantry] = useState(() => {
     const s = localStorage.getItem('cake_pantry');
     if (s) {
       try {
         const parsed = JSON.parse(s);
-        // Safely migrate existing pantry items by ensuring isDry property exists
         return parsed.map(item => ({
           ...item,
           isDry: item.isDry !== undefined ? item.isDry : false
