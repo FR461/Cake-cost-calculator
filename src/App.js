@@ -1,25 +1,37 @@
 import React, { useState, useEffect } from 'react';
 
 const defaultPantry = [
-  { id: '1', name: 'Cocoa Powder', price: 70, size: 100, unit: 'g', category: 'cake' },
-  { id: '2', name: 'Flour (Maida)', price: 65, size: 1000, unit: 'g', category: 'cake' },
-  { id: '3', name: 'Caster Sugar', price: 50, size: 1000, unit: 'g', category: 'cake' },
-  { id: '4', name: 'Unsalted Butter', price: 275, size: 500, unit: 'g', category: 'cake' },
-  { id: '5', name: 'Eggs', price: 90, size: 12, unit: 'pcs', category: 'cake' },
-  { id: '6', name: 'Oil', price: 200, size: 1000, unit: 'ml', category: 'cake' },
-  { id: '7', name: 'Whipping Cream', price: 200, size: 1000, unit: 'ml', category: 'cream' },
-  { id: '8', name: 'Cream Cheese', price: 350, size: 500, unit: 'g', category: 'cream' }
+  { id: '1', name: 'Cocoa Powder', price: 165, size: 70, unit: 'g', category: 'cake', isDry: true },
+  { id: '2', name: 'Flour (Maida)', price: 100, size: 1000, unit: 'g', category: 'cake', isDry: true },
+  { id: '3', name: 'Powdered Sugar', price: 75, size: 500, unit: 'g', category: 'cake', isDry: true },
+  { id: '4', name: 'Unsalted Butter', price: 275, size: 500, unit: 'g', category: 'cake', isDry: true },
+  { id: '5', name: 'Eggs', price: 144, size: 12, unit: 'pcs', category: 'cake', isDry: false },
+  { id: '6', name: 'Oil', price: 200, size: 1000, unit: 'ml', category: 'cake', isDry: false },
+  { id: '7', name: 'Milk', price: 33, size: 500, unit: 'ml', category: 'cake', isDry: false },
+  { id: '8', name: 'Whipping Cream', price: 220, size: 1000, unit: 'ml', category: 'cream', isDry: false },
+  { id: '9', name: 'Dairy Cream', price: 100, size: 250, unit: 'ml', category: 'cream', isDry: false },
+  { id: '10', name: 'Chocolate Morde', price: 220, size: 400, unit: 'g', category: 'cream', isDry: true }
 ];
-
-const unitInBase = {
-  g: 1, kg: 1000, mg: 0.001, ml: 1, l: 1000, cups: 240, cup: 240, tbsp: 15, tsp: 5, pcs: 1
-};
 
 export default function App() {
   const [tab, setTab] = useState('calc');
+  
+  // Safely load pantry without wiping user localStorage
   const [pantry, setPantry] = useState(() => {
     const s = localStorage.getItem('cake_pantry');
-    return s ? JSON.parse(s) : defaultPantry;
+    if (s) {
+      try {
+        const parsed = JSON.parse(s);
+        // Safely migrate existing pantry items by ensuring isDry property exists
+        return parsed.map(item => ({
+          ...item,
+          isDry: item.isDry !== undefined ? item.isDry : false
+        }));
+      } catch (e) {
+        return defaultPantry;
+      }
+    }
+    return defaultPantry;
   });
 
   const [savedRecipes, setSavedRecipes] = useState(() => {
@@ -137,6 +149,25 @@ export default function App() {
 }
 
 /* ==========================================================================
+   HELPER CONVERSION FUNCTION
+   ========================================================================== */
+function getUnitMultiplier(unit, isDry) {
+  const multipliers = {
+    g: 1,
+    kg: 1000,
+    mg: 0.001,
+    ml: 1,
+    l: 1000,
+    cups: isDry ? 120 : 240, // 1 cup = 120g for dry ingredients, 240ml for liquids
+    cup: isDry ? 120 : 240,
+    tbsp: isDry ? 7.5 : 15,
+    tsp: isDry ? 2.5 : 5,
+    pcs: 1
+  };
+  return multipliers[unit] || 1;
+}
+
+/* ==========================================================================
    CALCULATOR COMPONENT
    ========================================================================== */
 function CalculatorTab({ pantry, currentRecipe, setCurrentRecipe, onSaveRecipe, onNewRecipe }) {
@@ -180,8 +211,11 @@ function CalculatorTab({ pantry, currentRecipe, setCurrentRecipe, onSaveRecipe, 
   const calcItemCost = (pantryId, used, usedUnit) => {
     const item = pantry.find(p => p.id === pantryId);
     if (!item || item.size === 0) return 0;
-    const pantryBaseMult = unitInBase[item.unit] || 1;
-    const recipeBaseMult = unitInBase[usedUnit] || 1;
+    
+    const isDry = item.isDry || false;
+    const pantryBaseMult = getUnitMultiplier(item.unit, isDry);
+    const recipeBaseMult = getUnitMultiplier(usedUnit, isDry);
+    
     const costPerBaseUnit = item.price / (item.size * pantryBaseMult);
     const totalBaseUsed = (used || 0) * recipeBaseMult;
     return costPerBaseUnit * totalBaseUsed;
@@ -201,7 +235,7 @@ function CalculatorTab({ pantry, currentRecipe, setCurrentRecipe, onSaveRecipe, 
         <h4 style={{ margin: '0 0 8px 0', color: '#d97706' }}>{title}</h4>
         <select onChange={e => { addRecipeItem(e.target.value, sectionKey); e.target.value = ''; }} style={{ width: '100%', padding: '8px', borderRadius: '6px' }}>
           <option value="">+ Select {filterCategory === 'cake' ? 'Cake' : 'Cream'} Ingredient</option>
-          {filteredPantry.map(i => <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
+          {filteredPantry.map(i => <option key={i.id} value={i.id}>{i.name} ({i.unit}) {i.isDry ? '[Dry]' : '[Wet]'}</option>)}
         </select>
 
         <div style={{ marginTop: '12px' }}>
@@ -212,12 +246,12 @@ function CalculatorTab({ pantry, currentRecipe, setCurrentRecipe, onSaveRecipe, 
             return (
               <div key={i.pantryId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f9f9f9', padding: '8px', marginBottom: '6px', borderRadius: '6px', fontSize: '13px' }}>
                 <div style={{ flex: 1 }}>
-                  <strong>{item.name}</strong>
+                  <strong>{item.name}</strong> <span style={{ fontSize: '10px', color: '#666' }}>({item.isDry ? 'Dry' : 'Wet/Volume'})</span>
                   <div style={{ fontSize: '11px', color: '#666' }}>₹{item.price} per {item.size} {item.unit}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span>Using:</span>
-                  <input type="number" step="0.1" value={i.used} onChange={e => updateUsed(i.pantryId, 'used', e.target.value, sectionKey)} style={{ width: '45px', padding: '4px' }} />
+                  <input type="number" step="0.01" value={i.used} onChange={e => updateUsed(i.pantryId, 'used', e.target.value, sectionKey)} style={{ width: '45px', padding: '4px' }} />
                   <select value={i.usedUnit || item.unit} onChange={e => updateUsed(i.pantryId, 'usedUnit', e.target.value, sectionKey)} style={{ padding: '4px', fontSize: '12px' }}>
                     <option value="cups">cups</option>
                     <option value="cup">cup</option>
@@ -304,7 +338,7 @@ function CalculatorTab({ pantry, currentRecipe, setCurrentRecipe, onSaveRecipe, 
 }
 
 /* ==========================================================================
-   PANTRY COMPONENT (WITH INLINE EDITING)
+   PANTRY COMPONENT (WITH WET/DRY SELECTION)
    ========================================================================== */
 function PantryTab({ pantry, onAddPantryItem, onUpdatePantryItem, onDeletePantryItem }) {
   const [name, setName] = useState('');
@@ -312,21 +346,22 @@ function PantryTab({ pantry, onAddPantryItem, onUpdatePantryItem, onDeletePantry
   const [size, setSize] = useState('');
   const [unit, setUnit] = useState('cups');
   const [category, setCategory] = useState('cake');
+  const [isDry, setIsDry] = useState(true);
   const [pantryFilter, setPantryFilter] = useState('all');
 
   const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', price: '', size: '', unit: 'g', category: 'cake' });
+  const [editForm, setEditForm] = useState({ name: '', price: '', size: '', unit: 'g', category: 'cake', isDry: true });
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name || !price || !size) return;
-    onAddPantryItem({ id: Date.now().toString(), name, price: +price, size: +size, unit, category });
+    onAddPantryItem({ id: Date.now().toString(), name, price: +price, size: +size, unit, category, isDry });
     setName(''); setPrice(''); setSize('');
   };
 
   const startEdit = (item) => {
     setEditingId(item.id);
-    setEditForm({ ...item });
+    setEditForm({ ...item, isDry: item.isDry !== undefined ? item.isDry : true });
   };
 
   const cancelEdit = () => {
@@ -352,9 +387,10 @@ function PantryTab({ pantry, onAddPantryItem, onUpdatePantryItem, onDeletePantry
       <form onSubmit={handleSubmit} style={{ background: '#fff', padding: '12px', borderRadius: '8px', marginBottom: '16px', border: '1px solid #ddd' }}>
         <h4>Add New Ingredient</h4>
         <input placeholder="Name (e.g. Cocoa)" value={name} onChange={e => setName(e.target.value)} style={{ width: '90%', padding: '8px', marginBottom: '6px' }} required />
+        
         <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
-          <input placeholder="Price (₹)" type="number" value={price} onChange={e => setPrice(e.target.value)} style={{ width: '30%', padding: '8px' }} required />
-          <input placeholder="Pack Size" type="number" value={size} onChange={e => setSize(e.target.value)} style={{ width: '30%', padding: '8px' }} required />
+          <input placeholder="Price (₹)" type="number" value={price} onChange={e => setPrice(e.target.value)} style={{ width: '25%', padding: '8px' }} required />
+          <input placeholder="Pack Size" type="number" value={size} onChange={e => setSize(e.target.value)} style={{ width: '25%', padding: '8px' }} required />
           <select value={unit} onChange={e => setUnit(e.target.value)} style={{ padding: '8px', width: '20%' }}>
             <option value="cups">cups</option>
             <option value="cup">cup</option>
@@ -371,6 +407,18 @@ function PantryTab({ pantry, onAddPantryItem, onUpdatePantryItem, onDeletePantry
             <option value="cream">Cream</option>
           </select>
         </div>
+
+        {/* Wet / Dry Ingredient Type Radio */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px', fontSize: '13px', background: '#f3f4f6', padding: '6px 10px', borderRadius: '6px' }}>
+          <span style={{ fontWeight: 'bold' }}>Type:</span>
+          <label style={{ cursor: 'pointer' }}>
+            <input type="radio" name="pantryType" checked={isDry} onChange={() => setIsDry(true)} /> Dry (1 cup = 120g)
+          </label>
+          <label style={{ cursor: 'pointer' }}>
+            <input type="radio" name="pantryType" checked={!isDry} onChange={() => setIsDry(false)} /> Wet / Liquid (1 cup = 240ml)
+          </label>
+        </div>
+
         <button type="submit" style={{ width: '100%', padding: '10px', background: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>+ Save to Pantry</button>
       </form>
 
@@ -388,8 +436,8 @@ function PantryTab({ pantry, onAddPantryItem, onUpdatePantryItem, onDeletePantry
               <form onSubmit={handleUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <input value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} style={{ padding: '6px' }} required />
                 <div style={{ display: 'flex', gap: '4px' }}>
-                  <input type="number" value={editForm.price} onChange={e => setEditForm({ ...editForm, price: e.target.value })} placeholder="Price" style={{ width: '30%', padding: '6px' }} required />
-                  <input type="number" value={editForm.size} onChange={e => setEditForm({ ...editForm, size: e.target.value })} placeholder="Size" style={{ width: '30%', padding: '6px' }} required />
+                  <input type="number" value={editForm.price} onChange={e => setEditForm({ ...editForm, price: e.target.value })} placeholder="Price" style={{ width: '25%', padding: '6px' }} required />
+                  <input type="number" value={editForm.size} onChange={e => setEditForm({ ...editForm, size: e.target.value })} placeholder="Size" style={{ width: '25%', padding: '6px' }} required />
                   <select value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} style={{ width: '20%', padding: '6px' }}>
                     <option value="cups">cups</option>
                     <option value="cup">cup</option>
@@ -406,6 +454,16 @@ function PantryTab({ pantry, onAddPantryItem, onUpdatePantryItem, onDeletePantry
                     <option value="cream">Cream</option>
                   </select>
                 </div>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                  <label>
+                    <input type="radio" name={`editType_${i.id}`} checked={editForm.isDry} onChange={() => setEditForm({ ...editForm, isDry: true })} /> Dry
+                  </label>
+                  <label>
+                    <input type="radio" name={`editType_${i.id}`} checked={!editForm.isDry} onChange={() => setEditForm({ ...editForm, isDry: false })} /> Wet / Volume
+                  </label>
+                </div>
+
                 <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '4px' }}>
                   <button type="button" onClick={cancelEdit} style={{ background: '#eee', color: '#333', border: 'none', padding: '4px 8px', borderRadius: '4px' }}>Cancel</button>
                   <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', fontWeight: 'bold' }}>Save</button>
@@ -414,7 +472,11 @@ function PantryTab({ pantry, onAddPantryItem, onUpdatePantryItem, onDeletePantry
             ) : (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <strong>{i.name}</strong> <span style={{ fontSize: '10px', background: '#eee', padding: '2px 6px', borderRadius: '4px', marginLeft: '4px' }}>{(i.category || 'cake').toUpperCase()}</span>
+                  <strong>{i.name}</strong> 
+                  <span style={{ fontSize: '10px', background: '#eee', padding: '2px 6px', borderRadius: '4px', marginLeft: '4px' }}>{(i.category || 'cake').toUpperCase()}</span>
+                  <span style={{ fontSize: '10px', background: i.isDry ? '#fef3c7' : '#e0f2fe', color: i.isDry ? '#b45309' : '#0369a1', padding: '2px 6px', borderRadius: '4px', marginLeft: '4px' }}>
+                    {i.isDry ? 'Dry' : 'Wet'}
+                  </span>
                   <div style={{ fontSize: '12px', color: '#666' }}>₹{i.price} for {i.size} {i.unit} (₹{(i.price/i.size).toFixed(2)}/{i.unit})</div>
                 </div>
                 <div style={{ display: 'flex', gap: '4px' }}>
