@@ -264,7 +264,28 @@ function CalculatorTab({ pantry, currentRecipe, setCurrentRecipe, onSaveRecipe, 
                 <div style={{ width: '55px', textAlign: 'right', fontWeight: 'bold', color: '#d97706' }}>
                   ₹{cost.toFixed(1)}
                 </div>
-                <button onClick={() => removeRecipeItem(i.pantryId, sectionKey)} style={{ marginLeft: '4px', background: 'none', border: 'none', color: 'red', cursor: 'pointer' }}>✕</button>
+                
+                {/* Fully Red Remove Button */}
+                <button 
+                  onClick={() => removeRecipeItem(i.pantryId, sectionKey)} 
+                  style={{ 
+                    marginLeft: '8px', 
+                    background: '#dc2626', 
+                    color: '#ffffff', 
+                    border: 'none', 
+                    borderRadius: '4px',
+                    width: '24px',
+                    height: '24px',
+                    lineHeight: '24px',
+                    textAlign: 'center',
+                    fontWeight: 'bold', 
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                  title="Remove Ingredient"
+                >
+                  ✕
+                </button>
               </div>
             );
           })}
